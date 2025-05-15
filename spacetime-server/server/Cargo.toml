@@ -1,0 +1,18 @@
+[package]
+name = "spacetime-module"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+spacetimedb = "1.1.2"
+log = "0.4"
+aptos-sdk = { git = "https://github.com/aptos-labs/aptos-core", branch = "devnet" }
+ 
+[patch.crates-io]
+merlin = { git = "https://github.com/aptos-labs/merlin" }
+x25519-dalek = { git = "https://github.com/aptos-labs/x25519-dalek", branch = "zeroize_v1" }
