@@ -1,7 +1,7 @@
 pub mod math;
 
 use math::DbVector2;
-use rand::Rng;
+use spacetimedb::rand::Rng;
 use spacetimedb::{spacetimedb_lib::ScheduleAt, Identity, ReducerContext, Table, Timestamp, TimeDuration};
 use std::{collections::HashMap, time::Duration};
 
