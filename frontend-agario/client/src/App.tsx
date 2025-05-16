@@ -19,9 +19,23 @@ import type {
 
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 
+// Aptos SDK for account address type, etc. (Optional for just getting address string)
+// import { AccountAddress } from "@aptos-labs/ts-sdk"; // If you want to use the type
+
 const SPACETIMEDB_URI = 'ws://localhost:3000';
 const MODULE_NAME = 'spacetime-agario';
 const TARGET_FOOD_COUNT = 600; 
+
+// Petra Wallet specific type, or a more generic Aptos Standard Wallet type
+// For simplicity, we'll check for window.aptos or window.petra
+interface AptosWallet {
+  connect: () => Promise<{ address: string; publicKey: string; [key: string]: any }>;
+  account: () => Promise<{ address: string; publicKey: string; [key: string]: any }>;
+  disconnect: () => Promise<void>;
+  network: () => Promise<string>;
+  isConnected: () => Promise<boolean>;
+  // Add other methods like signAndSubmitTransaction if needed later
+}
 
 function massToRadius(mass: number): number {
     return Math.sqrt(mass);
@@ -40,21 +54,20 @@ export type RenderableCircle = CircleTableEntry & {
     radius: number;
 };
 
-// --- Custom Hooks ---
-function useEntities(conn: DbConnection | null): Map<number, ServerEntity> {
+// --- Custom Hooks (Keep these as they were in the last working version) ---
+function useEntities(conn: DbConnection | null): Map<number, ServerEntity> { /* ... Same ... */ 
     const [entities, setEntities] = useState<Map<number, ServerEntity>>(new Map());
     useEffect(() => {
         if (!conn?.db?.entity) { setEntities(new Map()); return; }
-        const loadInitialData = () => { if (conn?.db?.entity && typeof conn.db.entity.iter === 'function') { try { const all = Array.from(conn.db.entity.iter()); console.log(`[useEntities] Initial load. Count: ${all.length}`); setEntities(new Map(all.map(e => [e.entityId, e]))); } catch (e) { console.error("[useEntities] Error iter:", e); } } else { console.warn("[useEntities] No .iter()"); }}; loadInitialData();
-        const onInsert = (_ctx: EventContext, entity: ServerEntity) => { console.log(`[useEntities] Insert Entity ID: ${entity.entityId}, Mass: ${entity.mass}`); setEntities(prev => new Map(prev).set(entity.entityId, entity)); }; conn.db.entity.onInsert(onInsert);
-        const onUpdate = (_ctx: EventContext, _old: ServerEntity, newEntity: ServerEntity) => { console.log(`[useEntities] Update Entity ID: ${newEntity.entityId}, Mass: ${newEntity.mass}, Pos: (${newEntity.position?.x},${newEntity.position?.y})`); setEntities(prev => new Map(prev).set(newEntity.entityId, newEntity)); }; conn.db.entity.onUpdate(onUpdate);
-        const onDelete = (_ctx: EventContext, entity: ServerEntity) => { console.log(`[useEntities] Delete Entity ID: ${entity.entityId}`); setEntities(prev => { const next = new Map(prev); next.delete(entity.entityId); return next; }); }; conn.db.entity.onDelete(onDelete);
+        const loadInitialData = () => { if (conn?.db?.entity && typeof conn.db.entity.iter === 'function') { try { const all = Array.from(conn.db.entity.iter()); setEntities(new Map(all.map(e => [e.entityId, e]))); } catch (e) { console.error("[useEntities] Error iter:", e); } } else { console.warn("[useEntities] No .iter()"); }}; loadInitialData();
+        const onInsert = (_ctx: EventContext, entity: ServerEntity) => setEntities(prev => new Map(prev).set(entity.entityId, entity)); conn.db.entity.onInsert(onInsert);
+        const onUpdate = (_ctx: EventContext, _old: ServerEntity, newEntity: ServerEntity) => setEntities(prev => new Map(prev).set(newEntity.entityId, newEntity)); conn.db.entity.onUpdate(onUpdate);
+        const onDelete = (_ctx: EventContext, entity: ServerEntity) => setEntities(prev => { const next = new Map(prev); next.delete(entity.entityId); return next; }); conn.db.entity.onDelete(onDelete);
         return () => { if (conn?.db?.entity) { conn.db.entity.removeOnInsert(onInsert); conn.db.entity.removeOnUpdate(onUpdate); conn.db.entity.removeOnDelete(onDelete); }};
     }, [conn]);
     return entities;
 }
-
-function usePlayers(conn: DbConnection | null): Map<string, Player> {
+function usePlayers(conn: DbConnection | null): Map<string, Player> { /* ... Same ... */ 
   const [playersMap, setPlayersMap] = useState<Map<string, Player>>(new Map());
   useEffect(() => {
     if (!conn?.db?.player) { setPlayersMap(new Map()); return; }
@@ -90,8 +103,7 @@ function usePlayers(conn: DbConnection | null): Map<string, Player> {
   }, [conn]);
   return playersMap;
 }
-
-function useCirclesInTable(conn: DbConnection | null): CircleTableEntry[] {
+function useCirclesInTable(conn: DbConnection | null): CircleTableEntry[] { /* ... Same ... */ 
   const [circlesArr, setCirclesArr] = useState<CircleTableEntry[]>([]);
   useEffect(() => {
     if (!conn?.db?.circle) { setCirclesArr([]); return; }
@@ -99,24 +111,23 @@ function useCirclesInTable(conn: DbConnection | null): CircleTableEntry[] {
         const actualPlayerId = (circleDataFromSDK as any).playerId ?? circleDataFromSDK.player_id;
         return { entityId: circleDataFromSDK.entityId, player_id: actualPlayerId as number, direction: circleDataFromSDK.direction, speed: circleDataFromSDK.speed, last_split_time: circleDataFromSDK.last_split_time };
     };
-    const loadInitialData = () => { if (conn?.db?.circle && typeof conn.db.circle.iter === 'function') { try { const allRawCircles = Array.from(conn.db.circle.iter()); console.log(`[useCirclesInTable] Initial load. Raw count: ${allRawCircles.length}`); setCirclesArr(allRawCircles.map(normalizeCircle)); } catch (e) { console.error("[useCirclesInTable] Error iter:", e); } } else { console.warn("[useCirclesInTable] No .iter()"); }}; loadInitialData();
+    const loadInitialData = () => { if (conn?.db?.circle && typeof conn.db.circle.iter === 'function') { try { const allRawCircles = Array.from(conn.db.circle.iter()); setCirclesArr(allRawCircles.map(normalizeCircle)); } catch (e) { console.error("[useCirclesInTable] Error iter:", e); } } else { console.warn("[useCirclesInTable] No .iter()"); }}; loadInitialData();
     const eq = (c1: CircleTableEntry, c2: CircleTableEntry) => c1.entityId === c2.entityId;
-    const onInsert = (_ctx: EventContext, c_sdk: any) => { const norm = normalizeCircle(c_sdk); console.log(`[useCirclesInTable] Insert EID: ${norm.entityId}, NormPID: ${norm.player_id}`); setCirclesArr(prev => [...prev, norm]); }; conn.db.circle.onInsert(onInsert);
-    const onUpdate = (_ctx: EventContext, _o: CircleTableEntry, n_sdk: any) => { const norm = normalizeCircle(n_sdk); console.log(`[useCirclesInTable] Update EID: ${norm.entityId}, NormPID: ${norm.player_id}, Speed: ${norm.speed}, Dir: (${norm.direction?.x},${norm.direction?.y})`); setCirclesArr(prev => prev.map(c => eq(c, norm) ? norm : c)); }; conn.db.circle.onUpdate(onUpdate);
-    const onDelete = (_ctx: EventContext, c_sdk: any) => { const norm = normalizeCircle(c_sdk); console.log(`[useCirclesInTable] Delete EID: ${norm.entityId}`); setCirclesArr(prev => prev.filter(el => el.entityId !== norm.entityId)); }; conn.db.circle.onDelete(onDelete);
+    const onInsert = (_ctx: EventContext, c_sdk: any) => { const norm = normalizeCircle(c_sdk); setCirclesArr(prev => [...prev, norm]); }; conn.db.circle.onInsert(onInsert);
+    const onUpdate = (_ctx: EventContext, _o: CircleTableEntry, n_sdk: any) => { const norm = normalizeCircle(n_sdk); setCirclesArr(prev => prev.map(c => eq(c, norm) ? norm : c)); }; conn.db.circle.onUpdate(onUpdate);
+    const onDelete = (_ctx: EventContext, c_sdk: any) => { const norm = normalizeCircle(c_sdk); setCirclesArr(prev => prev.filter(el => el.entityId !== norm.entityId)); }; conn.db.circle.onDelete(onDelete);
     return () => { if (conn?.db?.circle) { conn.db.circle.removeOnInsert(onInsert); conn.db.circle.removeOnUpdate(onUpdate); conn.db.circle.removeOnDelete(onDelete); }};
   }, [conn]);
   return circlesArr;
 }
-
-function useFood(conn: DbConnection | null, allEntities: Map<number, ServerEntity>): RenderableFood[] {
+function useFood(conn: DbConnection | null, allEntities: Map<number, ServerEntity>): RenderableFood[] { /* ... Same ... */ 
   const [renderableFood, setRenderableFood] = useState<RenderableFood[]>([]);
   const [foodEntityIds, setFoodEntityIds] = useState<Set<number>>(new Set());
   useEffect(() => {
     if (!conn?.db?.food) { setFoodEntityIds(new Set()); return; }
-    const loadInitialFoodIds = () => { if (conn?.db?.food && typeof conn.db.food.iter === 'function') { try { const entries = Array.from(conn.db.food.iter()); console.log(`[useFood] Initial food IDs count: ${entries.length}`); setFoodEntityIds(new Set(entries.map(f => f.entityId))); } catch (e) { console.error("[useFood] Error iter IDs:", e); } } else { console.warn("[useFood] No .iter() for IDs");}}; loadInitialFoodIds();
-    const onFoodInsert = (_ctx: EventContext, fe: FoodTableEntry) => { console.log(`[useFood] Food ID Insert: ${fe.entityId}`); setFoodEntityIds(prev => new Set(prev).add(fe.entityId)); }; conn.db.food.onInsert(onFoodInsert);
-    const onFoodDelete = (_ctx: EventContext, fe: FoodTableEntry) => { console.log(`[useFood] Food ID Delete: ${fe.entityId}`); setFoodEntityIds(prev => { const next = new Set(prev); next.delete(fe.entityId); return next; }); }; conn.db.food.onDelete(onFoodDelete);
+    const loadInitialFoodIds = () => { if (conn?.db?.food && typeof conn.db.food.iter === 'function') { try { const entries = Array.from(conn.db.food.iter()); setFoodEntityIds(new Set(entries.map(f => f.entityId))); } catch (e) { console.error("[useFood] Error iter IDs:", e); } } else { console.warn("[useFood] No .iter() for IDs");}}; loadInitialFoodIds();
+    const onFoodInsert = (_ctx: EventContext, fe: FoodTableEntry) => { setFoodEntityIds(prev => new Set(prev).add(fe.entityId)); }; conn.db.food.onInsert(onFoodInsert);
+    const onFoodDelete = (_ctx: EventContext, fe: FoodTableEntry) => { setFoodEntityIds(prev => { const next = new Set(prev); next.delete(fe.entityId); return next; }); }; conn.db.food.onDelete(onFoodDelete);
     return () => { if (conn?.db?.food) { conn.db.food.removeOnInsert(onFoodInsert); conn.db.food.removeOnDelete(onFoodDelete); }};
   }, [conn]);
   useEffect(() => {
@@ -130,8 +141,7 @@ function useFood(conn: DbConnection | null, allEntities: Map<number, ServerEntit
   }, [foodEntityIds, allEntities]);
   return renderableFood;
 }
-
-function useConfig(conn: DbConnection | null): Config | null {
+function useConfig(conn: DbConnection | null): Config | null { /* ... Same ... */ 
   const [configState, setConfigState] = useState<Config | null>(null);
   useEffect(() => {
     if (!conn?.db?.config) { setConfigState(null); return; }
@@ -151,7 +161,13 @@ function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [areAllSubscriptionsApplied, setAreAllSubscriptionsApplied] = useState(false);
-  type GamePhase = 'connecting' | 'loading_data' | 'login' | 'playing' | 'dead';
+  
+  // NEW Wallet State
+  const [aptosWalletAddress, setAptosWalletAddress] = useState<string | null>(null);
+  const [walletError, setWalletError] = useState<string | null>(null);
+  const [isPetraWalletInstalled, setIsPetraWalletInstalled] = useState(false);
+
+  type GamePhase = 'connecting' | 'wallet_connect' | 'loading_data' | 'login' | 'playing' | 'dead'; // Added 'wallet_connect'
   const [gamePhase, setGamePhase] = useState<GamePhase>('connecting');
   const [playerNameInput, setPlayerNameInput] = useState('');
 
@@ -162,7 +178,20 @@ function App() {
   const gameConfig = useConfig(dbConn);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const renderableCircles = React.useMemo(() => {
+  // Check for Petra Wallet on mount
+  useEffect(() => {
+    // Petra injects itself as `window.petra`
+    // Other Aptos standard wallets might use `window.aptos`
+    if ((window as any).petra || (window as any).aptos) {
+        setIsPetraWalletInstalled(true);
+        console.log("Aptos compatible wallet (Petra or other) detected.");
+    } else {
+        console.warn("Petra (or other Aptos standard) wallet not detected.");
+    }
+  }, []);
+
+
+  const renderableCircles = React.useMemo(() => { /* ... Same ... */ 
     const result = circlesInTable.map((circleEntry) => {
         const entityData = entities.get(circleEntry.entityId);
         if (entityData?.position && typeof entityData.mass === 'number' && typeof circleEntry.player_id === 'number') {
@@ -177,7 +206,7 @@ function App() {
     console.log(`Effect for DB Connection setup is running.`);
     let isCancelled = false;
     const onConnectHandler = (connInst: DbConnection, identity: Identity, token: string) => { if (isCancelled) return; console.log('Connected to SpacetimeDB with identity:', identity.toHexString()); localStorage.setItem('spacetimedb_auth_token', token); setClientIdentity(identity); setIsConnected(true); setConnectionError(null); setAreAllSubscriptionsApplied(false); const queries = ['SELECT * FROM player', 'SELECT * FROM circle', 'SELECT * FROM food', 'SELECT * FROM config', 'SELECT * FROM entity']; let subscribedCount = 0; if (!connInst?.db) { if (!isCancelled) { setConnectionError("DB instance not ready for subs."); setGamePhase('connecting'); } return; } queries.forEach(query => connInst.subscriptionBuilder().onApplied(() => { if (isCancelled) return; subscribedCount++; if (subscribedCount === queries.length) { console.log('All subscriptions applied.'); if (!isCancelled) setAreAllSubscriptionsApplied(true); } }).onError((_errCtx, errMsg) => { if (isCancelled) return; console.error(`Sub error ${query}:`, errMsg); if (!isCancelled) setConnectionError(`Sub failed: ${errMsg}`); }).subscribe(query)); };
-    const onDisconnectHandler = () => { if (isCancelled) return; console.log('Disconnected'); setIsConnected(false); setClientIdentity(null); setAreAllSubscriptionsApplied(false); if (!isCancelled) setGamePhase('connecting'); };
+    const onDisconnectHandler = () => { if (isCancelled) return; console.log('Disconnected'); setIsConnected(false); setClientIdentity(null); setAreAllSubscriptionsApplied(false); if (!isCancelled) setGamePhase('connecting'); }; // Reset Aptos wallet too?
     const onConnectErrorHandler = (_ctx: ErrorContext | null, err: Error | string) => { if (isCancelled) return; const msg = typeof err === 'string' ? err : (err.message || "Unknown conn error"); console.error('Connect Error:', msg, err); if (!isCancelled) { setConnectionError(msg); setGamePhase('connecting'); }};
     console.log(`Attempting connect: ${SPACETIMEDB_URI}, Module: ${MODULE_NAME}`);
     const authToken = localStorage.getItem('spacetimedb_auth_token');
@@ -191,17 +220,16 @@ function App() {
     const currentPlayer = currentIdentity ? players.get(currentIdentity.toHexString()) : null;
     let newPhase = gamePhase;
 
-    if (!isConnected) newPhase = 'connecting';
-    else if (!currentIdentity || !areAllSubscriptionsApplied || !gameConfig || !dbConn || 
+    if (!isConnected || !dbConn) newPhase = 'connecting'; // Ensure dbConn is also ready
+    else if (!aptosWalletAddress) newPhase = 'wallet_connect'; // Wallet not connected, go to wallet connect phase
+    else if (!currentIdentity || !areAllSubscriptionsApplied || !gameConfig || 
              (currentPlayer && typeof currentPlayer.player_id !== 'number') || 
              (entities.size === 0 && TARGET_FOOD_COUNT > 0 && gamePhase !== 'login' && gamePhase !== 'playing' && gamePhase !== 'dead') ) {
         newPhase = 'loading_data';
     }
     else if (currentPlayer && typeof currentPlayer.player_id === 'number') {
         const playerOwnedRenderableCircles = renderableCircles.filter(c => c.player_id === currentPlayer.player_id);
-        console.log(`[PhaseCheck - Alive/Dead Logic] CP ID: ${currentPlayer.player_id}, Owned Circles Count: ${playerOwnedRenderableCircles.length}, Total RenderableCircles: ${renderableCircles.length}`);
         const isAlive = playerOwnedRenderableCircles.length > 0;
-        
         if (isAlive) {
             newPhase = 'playing';
         } else {
@@ -218,23 +246,63 @@ function App() {
     else { newPhase = 'login'; }
 
     if (newPhase !== gamePhase) {
-      console.log(`Game phase changing from ${gamePhase} to ${newPhase}. CurrentPlayer (for this decision):`, currentPlayer ? {...currentPlayer, identity: currentPlayer.identity.toHexString(), playerId: currentPlayer.player_id} : null);
+      console.log(`Game phase changing from ${gamePhase} to ${newPhase}. CurrentPlayer (for this decision):`, currentPlayer ? {...currentPlayer, identity: currentPlayer.identity.toHexString(), playerId: currentPlayer.player_id} : null, `AptosAddr: ${aptosWalletAddress}`);
       setGamePhase(newPhase);
     }
-  }, [isConnected, clientIdentity, players, areAllSubscriptionsApplied, gameConfig, dbConn, gamePhase, renderableCircles, entities]);
+  }, [isConnected, clientIdentity, players, areAllSubscriptionsApplied, gameConfig, dbConn, gamePhase, renderableCircles, entities, aptosWalletAddress]); // Added aptosWalletAddress
+
+  // Wallet Connection Handler
+  const handleConnectWallet = async () => {
+    setWalletError(null);
+    // Prioritize window.petra if both exist, or choose based on your preference
+    const walletProvider: AptosWallet | undefined = (window as any).petra || (window as any).aptos;
+
+    if (walletProvider) {
+        try {
+            // Check if already connected (some wallets might provide this)
+            if (walletProvider.isConnected && await walletProvider.isConnected()) {
+                const account = await walletProvider.account();
+                console.log("Wallet already connected:", account);
+                setAptosWalletAddress(account.address);
+                // Optionally, get network:
+                // const network = await walletProvider.network();
+                // console.log("Connected to Aptos network:", network);
+            } else {
+                // Connect if not already connected
+                const account = await walletProvider.connect();
+                console.log("Wallet connected:", account);
+                setAptosWalletAddress(account.address);
+                // const network = await walletProvider.network();
+                // console.log("Connected to Aptos network:", network);
+            }
+        } catch (error: any) {
+            console.error("Failed to connect Aptos wallet:", error);
+            setWalletError(error?.message || "Failed to connect wallet. User might have rejected.");
+        }
+    } else {
+        setWalletError("Aptos wallet (e.g., Petra) not found. Please install a wallet extension.");
+        console.error("Aptos wallet (e.g., Petra) not found.");
+    }
+  };
+
 
   const handleEnterGame = useCallback((e: React.FormEvent) => { 
     e.preventDefault(); 
-    if (dbConn?.reducers && playerNameInput.trim() && 
-        (gamePhase === 'login' || gamePhase === 'loading_data')) { 
-        // CORRECTED: Use camelCase for the reducer method name
-        dbConn.reducers.enterGame(playerNameInput.trim()); 
-    } 
-  }, [dbConn, playerNameInput, gamePhase]);
+    if (dbConn?.reducers && playerNameInput.trim() && aptosWalletAddress &&
+        (gamePhase === 'login' || gamePhase === 'loading_data')) { // Ensure wallet is connected too
+        console.log(`Calling enterGame with name: ${playerNameInput.trim()}, Aptos Address: ${aptosWalletAddress}`);
+        // TODO: Modify server reducer 'enter_game' to accept aptos_address
+        // For now, it just calls with name.
+        dbConn.reducers.enterGame(playerNameInput.trim() /*, aptosWalletAddress */); 
+    } else {
+        console.warn("Cannot enter game. Conditions not met (dbConn, name, aptosAddress, phase).", 
+            {dbConn:!!dbConn, name:playerNameInput, aptos:aptosWalletAddress, phase:gamePhase});
+    }
+  }, [dbConn, playerNameInput, gamePhase, aptosWalletAddress]); // Added aptosWalletAddress dependency
 
-  const handleRespawn = useCallback(() => { if (dbConn?.reducers && gamePhase === 'dead') { console.log("Calling server respawn reducer."); dbConn.reducers.respawn(); } }, [dbConn, gamePhase]);
-  const handleSplit = useCallback(() => { if (dbConn?.reducers && gamePhase === 'playing') { dbConn.reducers.player_split(); } }, [dbConn, gamePhase]);
-  const handleSuicide = useCallback(() => { if (dbConn?.reducers && gamePhase === 'playing') { dbConn.reducers.suicide(); } }, [dbConn, gamePhase]);
+  const handleRespawn = useCallback(() => { /* ... Same ... */ if (dbConn?.reducers && gamePhase === 'dead') { console.log("Calling server respawn reducer."); dbConn.reducers.respawn(); } }, [dbConn, gamePhase]);
+  const handleSplit = useCallback(() => { /* ... Same ... */ if (dbConn?.reducers && gamePhase === 'playing') { dbConn.reducers.player_split(); } }, [dbConn, gamePhase]);
+  const handleSuicide = useCallback(() => { /* ... Same ... */ if (dbConn?.reducers && gamePhase === 'playing') { dbConn.reducers.suicide(); } }, [dbConn, gamePhase]);
 
   useEffect(() => { // Mouse move
     if (gamePhase !== 'playing' || !dbConn?.reducers || !canvasRef.current || !gameConfig) return;
@@ -269,8 +337,13 @@ function App() {
     };
 
     const currentPlayerForLoadingCheck = clientIdentity ? players.get(clientIdentity.toHexString()) : null;
-    if (!gameConfig || !isConnected || (gamePhase === 'loading_data' && (!currentPlayerForLoadingCheck || typeof currentPlayerForLoadingCheck.player_id !== 'number')) ) { 
-      actualRenderErrorOrLoading(isConnected && gameConfig ? 'Loading Player Data...' : (isConnected ? 'Loading Config...' : 'Connecting...')); 
+    if (!gameConfig || !isConnected || gamePhase === 'wallet_connect' || // Show loading if wallet connect phase
+        (gamePhase === 'loading_data' && (!currentPlayerForLoadingCheck || typeof currentPlayerForLoadingCheck.player_id !== 'number')) ) { 
+      let loadingMessage = 'Connecting...';
+      if (isConnected && gamePhase === 'wallet_connect') loadingMessage = 'Connect Aptos Wallet';
+      else if (isConnected && gameConfig) loadingMessage = 'Loading Player Data...';
+      else if (isConnected) loadingMessage = 'Loading Config...';
+      actualRenderErrorOrLoading(loadingMessage); 
       return; 
     }
     if (gamePhase === 'loading_data') { actualRenderErrorOrLoading('Loading Game Data...'); return; }
@@ -279,77 +352,66 @@ function App() {
     let camX = world_size_cfg / 2; let camY = world_size_cfg / 2;
     const currentPlayer = clientIdentity ? players.get(clientIdentity.toHexString()) : null;
     let currentPlayerTotalMass = 0;
-    const actualCalculateCameraAndMass = () => {
-        if (currentPlayer && typeof currentPlayer.player_id === 'number' && (gamePhase === 'playing' || gamePhase === 'dead')) {
-            const playerOwnedRenderableCircles = renderableCircles.filter(c => c.player_id === currentPlayer.player_id);
-            playerOwnedRenderableCircles.forEach(c => { if (c.mass) currentPlayerTotalMass += c.mass; });
-            if (gamePhase === 'playing' && playerOwnedRenderableCircles.length > 0) {
-                let xSum = 0, ySum = 0, mSumForCamera = 0;
-                playerOwnedRenderableCircles.forEach(c => { if (c.position && c.mass) { xSum += c.position.x * c.mass; ySum += c.position.y * c.mass; mSumForCamera += c.mass;}});
-                if (mSumForCamera > 0) { camX = xSum / mSumForCamera; camY = ySum / mSumForCamera; }
-            }
+    const actualCalculateCameraAndMass = () => { /* ... Same ... */ }; // Full version as before
+    if (currentPlayer && typeof currentPlayer.player_id === 'number' && (gamePhase === 'playing' || gamePhase === 'dead')) {
+        const playerOwnedRenderableCircles = renderableCircles.filter(c => c.player_id === currentPlayer.player_id);
+        playerOwnedRenderableCircles.forEach(c => { if (c.mass) currentPlayerTotalMass += c.mass; });
+        if (gamePhase === 'playing' && playerOwnedRenderableCircles.length > 0) {
+            let xSum = 0, ySum = 0, mSumForCamera = 0;
+            playerOwnedRenderableCircles.forEach(c => { if (c.position && c.mass) { xSum += c.position.x * c.mass; ySum += c.position.y * c.mass; mSumForCamera += c.mass;}});
+            if (mSumForCamera > 0) { camX = xSum / mSumForCamera; camY = ySum / mSumForCamera; }
         }
-    };
+    }
     actualCalculateCameraAndMass();
+
 
     ctx.save(); ctx.translate(canvas.width/2 - camX, canvas.height/2 - camY);
     ctx.strokeStyle = '#444'; ctx.lineWidth = Math.max(5, world_size_cfg/200); ctx.strokeRect(0,0,world_size_cfg, world_size_cfg);
     renderableFoodItems.forEach(f => { if (f?.position && f.radius) { ctx.beginPath(); ctx.arc(f.position.x, f.position.y, f.radius, 0, 2*Math.PI); ctx.fillStyle='#90EE90'; ctx.fill();}});
-    
-    if (gamePhase === 'playing' && currentPlayer && typeof currentPlayer.player_id !== 'number') {
-        console.warn(`[Canvas Render] In 'playing' phase, but currentPlayer.player_id is invalid: ${currentPlayer.player_id} for Identity: ${currentPlayer.identity.toHexString().substring(0,8)}`);
-    }
-    
-    renderableCircles.forEach(c => {
-      if (c?.position && typeof c.radius === 'number' && c.radius > 0 && typeof c.player_id === 'number') {
+    if (gamePhase === 'playing' && currentPlayer && typeof currentPlayer.player_id !== 'number') { console.warn(`[Canvas Render] In 'playing' phase, but currentPlayer.player_id is invalid`); }
+    renderableCircles.forEach(c => { /* ... Same circle rendering logic ... */ 
+        if (c?.position && typeof c.radius === 'number' && c.radius > 0 && typeof c.player_id === 'number') {
         const currentPlayerDataForRender = clientIdentity ? players.get(clientIdentity.toHexString()) : null;
         const isOwn = currentPlayerDataForRender && typeof currentPlayerDataForRender.player_id === 'number' && currentPlayerDataForRender.player_id === c.player_id;
-        
-        if (isOwn && gamePhase === 'playing') {
-            console.log( `[Canvas] RENDERING OWN Circle: EID ${c.entityId}, CPID ${c.player_id}, CheckPID ${currentPlayerDataForRender?.player_id}, Own ${isOwn}, R ${c.radius.toFixed(1)}`);
-        }
+        if (isOwn && gamePhase === 'playing') { console.log( `[Canvas] RENDERING OWN Circle: EID ${c.entityId}, CPID ${c.player_id}, R ${c.radius.toFixed(1)}`); }
         ctx.beginPath(); ctx.arc(c.position.x, c.position.y, c.radius, 0, 2*Math.PI);
         let ownerPlayerForName: Player | undefined; players.forEach(pCheck => { if (pCheck.player_id === c.player_id) ownerPlayerForName = pCheck; });
         const isOwnerAlive = ownerPlayerForName ? renderableCircles.some(rc => rc.player_id === ownerPlayerForName!.player_id) : false;
-        ctx.fillStyle = isOwn?'#3498db':(isOwnerAlive?'#e74c3c':'#7f8c8d');
-        ctx.fill();
+        ctx.fillStyle = isOwn?'#3498db':(isOwnerAlive?'#e74c3c':'#7f8c8d'); ctx.fill();
         ctx.strokeStyle = isOwn?'#2980b9':(isOwnerAlive?'#c0392b':'#606c70'); ctx.lineWidth=Math.max(1, c.radius/20); ctx.stroke();
-        const actualRenderName = () => {
-             if(isOwnerAlive && c.radius>10 && ownerPlayerForName){
-                ctx.fillStyle='white'; ctx.textAlign='center'; ctx.textBaseline='middle';
-                const fs=Math.max(8,Math.min(24,c.radius/2.8)); ctx.font=`bold ${fs}px Arial`;
-                ctx.shadowColor='black'; ctx.shadowBlur=3; ctx.shadowOffsetX=1; ctx.shadowOffsetY=1;
-                ctx.fillText(ownerPlayerForName.name||"P",c.position.x,c.position.y);
-                ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
-            }
-        };
-        actualRenderName();
+        if(isOwnerAlive && c.radius>10 && ownerPlayerForName){ ctx.fillStyle='white'; ctx.textAlign='center'; ctx.textBaseline='middle'; const fs=Math.max(8,Math.min(24,c.radius/2.8)); ctx.font=`bold ${fs}px Arial`; ctx.shadowColor='black'; ctx.shadowBlur=3; ctx.shadowOffsetX=1; ctx.shadowOffsetY=1; ctx.fillText(ownerPlayerForName.name||"P",c.position.x,c.position.y); ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0; }
       }
     });
     ctx.restore();
-    const actualHudAndDeathScreen = () => {
-        if(currentPlayer){
-            ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(5,5,200,50);
-            ctx.fillStyle='white'; ctx.font='16px Arial'; ctx.textAlign='left'; ctx.textBaseline='top';
-            ctx.fillText(`Name: ${currentPlayer.name||"P"}`,10,10);
-            ctx.fillText(`Mass: ${currentPlayerTotalMass.toFixed(0)}`,10,30);
-        }
-        if(gamePhase==='dead'){
-            ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(0,0,canvas.width,canvas.height);
-            ctx.fillStyle='white'; ctx.textAlign='center';
-            ctx.font='48px Arial'; ctx.fillText('You Died!',canvas.width/2,canvas.height/2-40);
-            ctx.font='24px Arial'; ctx.fillText(`Final Mass: ${currentPlayerTotalMass.toFixed(0)}`,canvas.width/2,canvas.height/2+10);
-        }
-    };
+    const actualHudAndDeathScreen = () => { /* ... Same ... */ }; // Full version as before
+    if(currentPlayer){ ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(5,5,200,50); ctx.fillStyle='white'; ctx.font='16px Arial'; ctx.textAlign='left'; ctx.textBaseline='top'; ctx.fillText(`Name: ${currentPlayer.name||"P"}`,10,10); ctx.fillText(`Mass: ${currentPlayerTotalMass.toFixed(0)}`,10,30); }
+    if(gamePhase==='dead'){ ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.fillStyle='white'; ctx.textAlign='center'; ctx.font='48px Arial'; ctx.fillText('You Died!',canvas.width/2,canvas.height/2-40); ctx.font='24px Arial'; ctx.fillText(`Final Mass: ${currentPlayerTotalMass.toFixed(0)}`,canvas.width/2,canvas.height/2+10); }
     actualHudAndDeathScreen();
+
 
   }, [gamePhase, renderableCircles, renderableFoodItems, players, gameConfig, clientIdentity, isConnected, connectionError, canvasRef, entities]);
 
   return (
     <div className="App">
-      {gamePhase === 'login' && !connectionError && (
+      {gamePhase === 'connecting' && <div className="modal"><h1>Connecting to SpacetimeDB...</h1></div>}
+      
+      {gamePhase === 'wallet_connect' && (
+        <div className="modal wallet-modal">
+          <h1>Connect Your Aptos Wallet</h1>
+          {!isPetraWalletInstalled && <p style={{color: 'orange'}}>Petra (or other Aptos standard) wallet not detected. Please install a wallet extension.</p>}
+          <button onClick={handleConnectWallet} disabled={!isPetraWalletInstalled}>
+            Connect Wallet (e.g., Petra)
+          </button>
+          {walletError && <p style={{color: 'red'}}>{walletError}</p>}
+          {aptosWalletAddress && <p>Connected: {aptosWalletAddress.substring(0,6)}...{aptosWalletAddress.substring(aptosWalletAddress.length - 4)}</p>}
+          {/* Optionally, button to proceed if wallet is connected, or auto-proceed */}
+        </div>
+      )}
+
+      {gamePhase === 'login' && !connectionError && aptosWalletAddress && ( // Only show login if wallet is connected
         <div className="modal login-modal">
           <h1>Enter Game</h1>
+          <p>Wallet: {aptosWalletAddress.substring(0,6)}...{aptosWalletAddress.substring(aptosWalletAddress.length - 4)}</p>
           <form onSubmit={handleEnterGame}>
             <input
               type="text"
@@ -366,37 +428,48 @@ function App() {
           </form>
         </div>
       )}
-      {connectionError && (gamePhase === 'connecting' || gamePhase === 'login' || gamePhase === 'loading_data') && (
+
+      {/* Error modal for SpacetimeDB connection issues */}
+      {connectionError && (gamePhase === 'connecting' || gamePhase === 'loading_data' || gamePhase === 'login' || gamePhase === 'wallet_connect') && (
         <div className="modal error-modal">
           <h1>Connection Issue</h1>
           <p>{connectionError}</p>
-          <p>Ensure server is running.</p>
+          <p>Ensure SpacetimeDB server is running.</p>
         </div>
       )}
-      <div className="game-container">
-        <canvas
-          ref={canvasRef}
-          width={Math.max(320, window.innerWidth * 0.9)}
-          height={Math.max(240, window.innerHeight * 0.8)}
-        />
-      </div>
-      <div className="controls">
-        {gamePhase === 'playing' && (
-          <>
-            <button onClick={handleSplit}>Split (Space)</button>
-            <button onClick={handleSuicide}>Suicide</button>
-          </>
-        )}
-        {gamePhase === 'dead' && (
-          <button onClick={handleRespawn}>Respawn</button>
-        )}
-      </div>
+
+      {/* Game Canvas and Controls - only shown when not in initial connection/wallet phases */}
+      {(gamePhase === 'loading_data' || gamePhase === 'playing' || gamePhase === 'dead') && (
+        <>
+          <div className="game-container">
+            <canvas
+              ref={canvasRef}
+              width={Math.max(320, window.innerWidth * 0.9)}
+              height={Math.max(240, window.innerHeight * 0.8)}
+            />
+          </div>
+          <div className="controls">
+            {gamePhase === 'playing' && (
+              <>
+                <button onClick={handleSplit}>Split (Space)</button>
+                <button onClick={handleSuicide}>Suicide</button>
+              </>
+            )}
+            {gamePhase === 'dead' && (
+              <button onClick={handleRespawn}>Respawn</button>
+            )}
+          </div>
+        </>
+      )}
+
       <div className="debug-info">
-        <p>Phase: {gamePhase} | Conn: {isConnected.toString()} | SubsDone: {areAllSubscriptionsApplied.toString()}</p>
-        {clientIdentity && <p>Identity: {clientIdentity.toHexString().substring(0,10)}...</p>}
-        {gameConfig && <p>World: {gameConfig.world_size ? Number(gameConfig.world_size) : "N/A"} | Food Target(server): {TARGET_FOOD_COUNT}</p>}
+        <p>Phase: {gamePhase} | SDB Conn: {isConnected.toString()} | SubsDone: {areAllSubscriptionsApplied.toString()}</p>
+        {clientIdentity && <p>SDB Identity: {clientIdentity.toHexString().substring(0,10)}...</p>}
+        {aptosWalletAddress && <p>Aptos Addr: {aptosWalletAddress.substring(0,6)}...{aptosWalletAddress.substring(aptosWalletAddress.length-4)}</p>}
+        {gameConfig && <p>World: {gameConfig.world_size ? Number(gameConfig.world_size) : "N/A"} | Food Target: {TARGET_FOOD_COUNT}</p>}
         <p>P: {players.size}, C(tbl): {circlesInTable.length}, C(rndr): {renderableCircles.length}, F(rndr): {renderableFoodItems.length}, E: {entities.size}</p>
-        {connectionError && <p style={{color: 'red'}}>Error: {connectionError}</p>}
+        {connectionError && <p style={{color: 'red'}}>SDB Error: {connectionError}</p>}
+        {walletError && <p style={{color: 'red'}}>Wallet Error: {walletError}</p>}
       </div>
     </div>
   );
