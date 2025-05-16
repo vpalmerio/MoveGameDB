@@ -33,6 +33,7 @@ import {
 
 export type EnterGame = {
   name: string,
+  aptosAddress: string,
 };
 
 /**
@@ -46,6 +47,7 @@ export namespace EnterGame {
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
       new ProductTypeElement("name", AlgebraicType.createStringType()),
+      new ProductTypeElement("aptosAddress", AlgebraicType.createStringType()),
     ]);
   }
 

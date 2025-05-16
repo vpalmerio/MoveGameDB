@@ -34,6 +34,7 @@ export type Player = {
   identity: Identity,
   playerId: number,
   name: string,
+  aptosAddress: string,
 };
 
 /**
@@ -49,6 +50,7 @@ export namespace Player {
       new ProductTypeElement("identity", AlgebraicType.createIdentityType()),
       new ProductTypeElement("playerId", AlgebraicType.createU32Type()),
       new ProductTypeElement("name", AlgebraicType.createStringType()),
+      new ProductTypeElement("aptosAddress", AlgebraicType.createStringType()),
     ]);
   }
 

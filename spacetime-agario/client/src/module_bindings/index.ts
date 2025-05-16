@@ -320,19 +320,19 @@ export class RemoteReducers {
     this.connection.offReducer("disconnect", callback);
   }
 
-  enterGame(name: string) {
-    const __args = { name };
+  enterGame(name: string, aptosAddress: string) {
+    const __args = { name, aptosAddress };
     let __writer = new BinaryWriter(1024);
     EnterGame.getTypeScriptAlgebraicType().serialize(__writer, __args);
     let __argsBuffer = __writer.getBuffer();
     this.connection.callReducer("enter_game", __argsBuffer, this.setCallReducerFlags.enterGameFlags);
   }
 
-  onEnterGame(callback: (ctx: ReducerEventContext, name: string) => void) {
+  onEnterGame(callback: (ctx: ReducerEventContext, name: string, aptosAddress: string) => void) {
     this.connection.onReducer("enter_game", callback);
   }
 
-  removeOnEnterGame(callback: (ctx: ReducerEventContext, name: string) => void) {
+  removeOnEnterGame(callback: (ctx: ReducerEventContext, name: string, aptosAddress: string) => void) {
     this.connection.offReducer("enter_game", callback);
   }
 
