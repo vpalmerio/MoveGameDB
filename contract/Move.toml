@@ -1,10 +1,10 @@
 [package]
-name = "MessageBoard"
+name = "PlayerSkins"
 version = "1.0.0"
 authors = []
 
 [addresses]
-message_board_addr = "_"
+player_skin_module_admin = "0xb4c1187da61e3817ba53c031eb7a455ed57234d2278ce3e4ed2c8bb412d72840"
 
 [dependencies]
 AptosFramework = { git = "https://github.com/aptos-labs/aptos-framework.git", rev = "mainnet", subdir = "aptos-framework" }
