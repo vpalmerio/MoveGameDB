@@ -65,6 +65,7 @@ pub struct Player {
     #[auto_inc]
     player_id: u32,
     name: String,
+    aptos_address: String,
 }
 
 #[spacetimedb::table(name = food, public)]
@@ -153,6 +154,7 @@ pub fn connect(ctx: &ReducerContext) -> Result<(), String> {
             identity: ctx.sender,
             player_id: 0,
             name: String::new(),
+            aptos_address: String::new(),
         })?;
     }
     Ok(())
@@ -180,11 +182,12 @@ pub fn disconnect(ctx: &ReducerContext) -> Result<(), String> {
 }
 
 #[spacetimedb::reducer]
-pub fn enter_game(ctx: &ReducerContext, name: String) -> Result<(), String> {
+pub fn enter_game(ctx: &ReducerContext, name: String, aptos_address: String) -> Result<(), String> {
     log::info!("Creating player with name {}", name);
     let mut player: Player = ctx.db.player().identity().find(ctx.sender).ok_or("")?;
     let player_id = player.player_id;
     player.name = name;
+    player.aptos_address = aptos_address;
     ctx.db.player().identity().update(player);
     spawn_player_initial_circle(ctx, player_id)?;
 
