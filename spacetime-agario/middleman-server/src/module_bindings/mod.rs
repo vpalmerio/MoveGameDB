@@ -95,7 +95,7 @@ pub enum Reducer {
     Connect,
     ConsumeEntity { request: ConsumeEntityTimer },
     Disconnect,
-    EnterGame { name: String },
+    EnterGame { name: String, aptos_address: String },
     MoveAllPlayers { timer: MoveAllPlayersTimer },
     PlayerSplit,
     Respawn,

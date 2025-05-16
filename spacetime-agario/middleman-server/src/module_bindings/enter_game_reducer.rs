@@ -8,11 +8,15 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 #[sats(crate = __lib)]
 pub(super) struct EnterGameArgs {
     pub name: String,
+    pub aptos_address: String,
 }
 
 impl From<EnterGameArgs> for super::Reducer {
     fn from(args: EnterGameArgs) -> Self {
-        Self::EnterGame { name: args.name }
+        Self::EnterGame {
+            name: args.name,
+            aptos_address: args.aptos_address,
+        }
     }
 }
 
@@ -32,7 +36,7 @@ pub trait enter_game {
     /// This method returns immediately, and errors only if we are unable to send the request.
     /// The reducer will run asynchronously in the future,
     ///  and its status can be observed by listening for [`Self::on_enter_game`] callbacks.
-    fn enter_game(&self, name: String) -> __sdk::Result<()>;
+    fn enter_game(&self, name: String, aptos_address: String) -> __sdk::Result<()>;
     /// Register a callback to run whenever we are notified of an invocation of the reducer `enter_game`.
     ///
     /// Callbacks should inspect the [`__sdk::ReducerEvent`] contained in the [`super::ReducerEventContext`]
@@ -42,7 +46,7 @@ pub trait enter_game {
     /// to cancel the callback.
     fn on_enter_game(
         &self,
-        callback: impl FnMut(&super::ReducerEventContext, &String) + Send + 'static,
+        callback: impl FnMut(&super::ReducerEventContext, &String, &String) + Send + 'static,
     ) -> EnterGameCallbackId;
     /// Cancel a callback previously registered by [`Self::on_enter_game`],
     /// causing it not to run in the future.
@@ -50,12 +54,18 @@ pub trait enter_game {
 }
 
 impl enter_game for super::RemoteReducers {
-    fn enter_game(&self, name: String) -> __sdk::Result<()> {
-        self.imp.call_reducer("enter_game", EnterGameArgs { name })
+    fn enter_game(&self, name: String, aptos_address: String) -> __sdk::Result<()> {
+        self.imp.call_reducer(
+            "enter_game",
+            EnterGameArgs {
+                name,
+                aptos_address,
+            },
+        )
     }
     fn on_enter_game(
         &self,
-        mut callback: impl FnMut(&super::ReducerEventContext, &String) + Send + 'static,
+        mut callback: impl FnMut(&super::ReducerEventContext, &String, &String) + Send + 'static,
     ) -> EnterGameCallbackId {
         EnterGameCallbackId(self.imp.on_reducer(
             "enter_game",
@@ -63,7 +73,11 @@ impl enter_game for super::RemoteReducers {
                 let super::ReducerEventContext {
                     event:
                         __sdk::ReducerEvent {
-                            reducer: super::Reducer::EnterGame { name },
+                            reducer:
+                                super::Reducer::EnterGame {
+                                    name,
+                                    aptos_address,
+                                },
                             ..
                         },
                     ..
@@ -71,7 +85,7 @@ impl enter_game for super::RemoteReducers {
                 else {
                     unreachable!()
                 };
-                callback(ctx, name)
+                callback(ctx, name, aptos_address)
             }),
         ))
     }

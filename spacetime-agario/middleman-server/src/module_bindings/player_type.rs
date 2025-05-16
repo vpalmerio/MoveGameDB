@@ -10,6 +10,7 @@ pub struct Player {
     pub identity: __sdk::Identity,
     pub player_id: u32,
     pub name: String,
+    pub aptos_address: String,
 }
 
 impl __sdk::InModule for Player {
