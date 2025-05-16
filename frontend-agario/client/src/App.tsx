@@ -19,23 +19,18 @@ import type {
 
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 
-// Aptos SDK for account address type, etc. (Optional for just getting address string)
-// import { AccountAddress } from "@aptos-labs/ts-sdk"; // If you want to use the type
-
-const SPACETIMEDB_URI = 'ws://localhost:3000';
-const MODULE_NAME = 'spacetime-agario';
-const TARGET_FOOD_COUNT = 600; 
-
 // Petra Wallet specific type, or a more generic Aptos Standard Wallet type
-// For simplicity, we'll check for window.aptos or window.petra
 interface AptosWallet {
   connect: () => Promise<{ address: string; publicKey: string; [key: string]: any }>;
   account: () => Promise<{ address: string; publicKey: string; [key: string]: any }>;
   disconnect: () => Promise<void>;
   network: () => Promise<string>;
   isConnected: () => Promise<boolean>;
-  // Add other methods like signAndSubmitTransaction if needed later
 }
+
+const SPACETIMEDB_URI = 'ws://localhost:3000';
+const MODULE_NAME = 'spacetime-agario';
+const TARGET_FOOD_COUNT = 600; 
 
 function massToRadius(mass: number): number {
     return Math.sqrt(mass);
@@ -54,8 +49,8 @@ export type RenderableCircle = CircleTableEntry & {
     radius: number;
 };
 
-// --- Custom Hooks (Keep these as they were in the last working version) ---
-function useEntities(conn: DbConnection | null): Map<number, ServerEntity> { /* ... Same ... */ 
+// --- Custom Hooks (Full versions as previously established) ---
+function useEntities(conn: DbConnection | null): Map<number, ServerEntity> {
     const [entities, setEntities] = useState<Map<number, ServerEntity>>(new Map());
     useEffect(() => {
         if (!conn?.db?.entity) { setEntities(new Map()); return; }
@@ -67,19 +62,51 @@ function useEntities(conn: DbConnection | null): Map<number, ServerEntity> { /* 
     }, [conn]);
     return entities;
 }
-function usePlayers(conn: DbConnection | null): Map<string, Player> { /* ... Same ... */ 
+// In App.tsx
+
+function usePlayers(conn: DbConnection | null): Map<string, Player> {
   const [playersMap, setPlayersMap] = useState<Map<string, Player>>(new Map());
   useEffect(() => {
     if (!conn?.db?.player) { setPlayersMap(new Map()); return; }
+
+    const normalizeSdkPlayer = (sdkPlayer: any): Player => {
+        let actualPlayerId: number | undefined = undefined;
+        if (typeof sdkPlayer.playerId === 'number') { // Check camelCase from SDK object
+            actualPlayerId = sdkPlayer.playerId;
+        } else if (typeof sdkPlayer.player_id === 'number') { // Fallback to snake_case
+            actualPlayerId = sdkPlayer.player_id;
+        }
+
+        let actualAptosAddress: string | null = null; // Default to null for Option<String>
+        if (typeof sdkPlayer.aptosAddress === 'string') { // Check camelCase from SDK object
+            actualAptosAddress = sdkPlayer.aptosAddress;
+        } else if (typeof sdkPlayer.aptos_address === 'string') { // Fallback to snake_case
+            actualAptosAddress = sdkPlayer.aptos_address;
+        }
+        // If sdkPlayer.aptosAddress/aptos_address is explicitly null, it will also be assigned.
+        // If it's undefined, actualAptosAddress remains null.
+
+        const typedPlayer: Player = {
+            identity: sdkPlayer.identity,
+            player_id: actualPlayerId as number, // Expect this to be a number after server processing
+            name: sdkPlayer.name,
+            aptos_address: actualAptosAddress, // Matches Option<String> -> string | null
+        };
+
+        if (typeof typedPlayer.player_id !== 'number') {
+            console.warn(`[usePlayers] Normalized player for ${typedPlayer.identity.toHexString()} has invalid player_id: ${typedPlayer.player_id}. SDK raw:`, sdkPlayer);
+        }
+        return typedPlayer;
+    };
+    
     const loadInitialData = () => { 
       if (conn?.db?.player && typeof conn.db.player.iter === 'function') { 
         try { 
-          const allPlayersFromTable = Array.from(conn.db.player.iter()); 
+          const allPlayersFromTableSDK = Array.from(conn.db.player.iter()); 
           const initialPlayersMap = new Map<string, Player>();
-          allPlayersFromTable.forEach(p_sdk => {
-            const p_ts: Player = { identity: p_sdk.identity, player_id: (p_sdk as any).playerId ?? p_sdk.player_id, name: p_sdk.name };
-            if (typeof p_ts.player_id !== 'number') { console.warn(`[usePlayers] Initial load: player_id for ${p_ts.identity.toHexString()} is invalid: ${p_ts.player_id}`); }
-            initialPlayersMap.set(p_ts.identity.toHexString(), p_ts);
+          allPlayersFromTableSDK.forEach(p_sdk => {
+            const normalized = normalizeSdkPlayer(p_sdk);
+            initialPlayersMap.set(normalized.identity.toHexString(), normalized);
           });
           console.log("[usePlayers] Initial (normalized):", Array.from(initialPlayersMap.values()).map(p => ({...p, identity:p.identity.toHexString()})));
           setPlayersMap(initialPlayersMap); 
@@ -87,23 +114,23 @@ function usePlayers(conn: DbConnection | null): Map<string, Player> { /* ... Sam
       } else { console.warn("[usePlayers] No .iter()"); }
     }; 
     loadInitialData();
+    
     const handlePlayerUpdate = (playerDataFromSDK: any, action: string) => {
-        let actualPlayerId: number | undefined = undefined;
-        if (typeof playerDataFromSDK.playerId === 'number') { actualPlayerId = playerDataFromSDK.playerId; } 
-        else if (typeof playerDataFromSDK.player_id === 'number') { actualPlayerId = playerDataFromSDK.player_id; }
-        else { console.warn(`[usePlayers] ${action}: Could not find valid player ID in raw SDK object for ${playerDataFromSDK.identity.toHexString()}`); }
-        const playerForState: Player = { identity: playerDataFromSDK.identity, player_id: actualPlayerId as number, name: playerDataFromSDK.name };
-        if (typeof playerForState.player_id !== 'number' && action !== "Delete") { console.error(`[usePlayers] CRITICAL ${action}: Storing player with invalid player_id: ${playerForState.player_id} for ID ${playerForState.identity.toHexString()}`); }
-        setPlayersMap(prev => new Map(prev).set(playerForState.identity.toHexString(), playerForState));
+        const normalizedPlayer = normalizeSdkPlayer(playerDataFromSDK);
+        console.log(`[usePlayers] ${action} (normalized for state):`, {...normalizedPlayer, identity: normalizedPlayer.identity.toHexString()});
+        setPlayersMap(prev => new Map(prev).set(normalizedPlayer.identity.toHexString(), normalizedPlayer));
     };
+
     const onInsert = (_ctx: EventContext, p: Player) => handlePlayerUpdate(p, "Insert"); conn.db.player.onInsert(onInsert);
     const onUpdate = (_ctx: EventContext, _o: Player, n: Player) => handlePlayerUpdate(n, "Update"); conn.db.player.onUpdate(onUpdate);
     const onDelete = (_ctx: EventContext, p_sdk: any) => { const idToDelete = p_sdk.identity.toHexString(); console.log(`[usePlayers] Delete: Identity ${idToDelete}`); setPlayersMap(prev => { const next = new Map(prev); next.delete(idToDelete); return next; }); }; conn.db.player.onDelete(onDelete);
+    
     return () => { if (conn?.db?.player) { conn.db.player.removeOnInsert(onInsert); conn.db.player.removeOnUpdate(onUpdate); conn.db.player.removeOnDelete(onDelete); }};
   }, [conn]);
   return playersMap;
 }
-function useCirclesInTable(conn: DbConnection | null): CircleTableEntry[] { /* ... Same ... */ 
+
+function useCirclesInTable(conn: DbConnection | null): CircleTableEntry[] {
   const [circlesArr, setCirclesArr] = useState<CircleTableEntry[]>([]);
   useEffect(() => {
     if (!conn?.db?.circle) { setCirclesArr([]); return; }
@@ -120,7 +147,8 @@ function useCirclesInTable(conn: DbConnection | null): CircleTableEntry[] { /* .
   }, [conn]);
   return circlesArr;
 }
-function useFood(conn: DbConnection | null, allEntities: Map<number, ServerEntity>): RenderableFood[] { /* ... Same ... */ 
+
+function useFood(conn: DbConnection | null, allEntities: Map<number, ServerEntity>): RenderableFood[] {
   const [renderableFood, setRenderableFood] = useState<RenderableFood[]>([]);
   const [foodEntityIds, setFoodEntityIds] = useState<Set<number>>(new Set());
   useEffect(() => {
@@ -135,13 +163,14 @@ function useFood(conn: DbConnection | null, allEntities: Map<number, ServerEntit
     for (const id of foodEntityIds) {
       const entity = allEntities.get(id);
       if (entity?.position && typeof entity.mass === 'number') { newRenderable.push({ entityId: id, position: entity.position, mass: entity.mass, radius: massToRadius(entity.mass) });
-      } else if (entity) { console.warn(`[useFood] Constructing Renderable: Entity for food ID ${id} missing pos/mass:`, entity); }
+      } else if (entity) { /* console.warn(`[useFood] Constructing Renderable: Entity for food ID ${id} missing pos/mass:`, entity); */ }
     }
     setRenderableFood(newRenderable);
   }, [foodEntityIds, allEntities]);
   return renderableFood;
 }
-function useConfig(conn: DbConnection | null): Config | null { /* ... Same ... */ 
+
+function useConfig(conn: DbConnection | null): Config | null {
   const [configState, setConfigState] = useState<Config | null>(null);
   useEffect(() => {
     if (!conn?.db?.config) { setConfigState(null); return; }
@@ -162,12 +191,11 @@ function App() {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [areAllSubscriptionsApplied, setAreAllSubscriptionsApplied] = useState(false);
   
-  // NEW Wallet State
   const [aptosWalletAddress, setAptosWalletAddress] = useState<string | null>(null);
   const [walletError, setWalletError] = useState<string | null>(null);
   const [isPetraWalletInstalled, setIsPetraWalletInstalled] = useState(false);
 
-  type GamePhase = 'connecting' | 'wallet_connect' | 'loading_data' | 'login' | 'playing' | 'dead'; // Added 'wallet_connect'
+  type GamePhase = 'connecting' | 'wallet_connect' | 'loading_data' | 'login' | 'playing' | 'dead';
   const [gamePhase, setGamePhase] = useState<GamePhase>('connecting');
   const [playerNameInput, setPlayerNameInput] = useState('');
 
@@ -178,20 +206,13 @@ function App() {
   const gameConfig = useConfig(dbConn);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Check for Petra Wallet on mount
   useEffect(() => {
-    // Petra injects itself as `window.petra`
-    // Other Aptos standard wallets might use `window.aptos`
     if ((window as any).petra || (window as any).aptos) {
         setIsPetraWalletInstalled(true);
-        console.log("Aptos compatible wallet (Petra or other) detected.");
-    } else {
-        console.warn("Petra (or other Aptos standard) wallet not detected.");
     }
   }, []);
 
-
-  const renderableCircles = React.useMemo(() => { /* ... Same ... */ 
+  const renderableCircles = React.useMemo(() => {
     const result = circlesInTable.map((circleEntry) => {
         const entityData = entities.get(circleEntry.entityId);
         if (entityData?.position && typeof entityData.mass === 'number' && typeof circleEntry.player_id === 'number') {
@@ -206,7 +227,7 @@ function App() {
     console.log(`Effect for DB Connection setup is running.`);
     let isCancelled = false;
     const onConnectHandler = (connInst: DbConnection, identity: Identity, token: string) => { if (isCancelled) return; console.log('Connected to SpacetimeDB with identity:', identity.toHexString()); localStorage.setItem('spacetimedb_auth_token', token); setClientIdentity(identity); setIsConnected(true); setConnectionError(null); setAreAllSubscriptionsApplied(false); const queries = ['SELECT * FROM player', 'SELECT * FROM circle', 'SELECT * FROM food', 'SELECT * FROM config', 'SELECT * FROM entity']; let subscribedCount = 0; if (!connInst?.db) { if (!isCancelled) { setConnectionError("DB instance not ready for subs."); setGamePhase('connecting'); } return; } queries.forEach(query => connInst.subscriptionBuilder().onApplied(() => { if (isCancelled) return; subscribedCount++; if (subscribedCount === queries.length) { console.log('All subscriptions applied.'); if (!isCancelled) setAreAllSubscriptionsApplied(true); } }).onError((_errCtx, errMsg) => { if (isCancelled) return; console.error(`Sub error ${query}:`, errMsg); if (!isCancelled) setConnectionError(`Sub failed: ${errMsg}`); }).subscribe(query)); };
-    const onDisconnectHandler = () => { if (isCancelled) return; console.log('Disconnected'); setIsConnected(false); setClientIdentity(null); setAreAllSubscriptionsApplied(false); if (!isCancelled) setGamePhase('connecting'); }; // Reset Aptos wallet too?
+    const onDisconnectHandler = () => { if (isCancelled) return; console.log('Disconnected'); setIsConnected(false); setClientIdentity(null); setAreAllSubscriptionsApplied(false); setAptosWalletAddress(null); if (!isCancelled) setGamePhase('connecting'); }; // Reset aptos wallet on SDB disconnect
     const onConnectErrorHandler = (_ctx: ErrorContext | null, err: Error | string) => { if (isCancelled) return; const msg = typeof err === 'string' ? err : (err.message || "Unknown conn error"); console.error('Connect Error:', msg, err); if (!isCancelled) { setConnectionError(msg); setGamePhase('connecting'); }};
     console.log(`Attempting connect: ${SPACETIMEDB_URI}, Module: ${MODULE_NAME}`);
     const authToken = localStorage.getItem('spacetimedb_auth_token');
@@ -220,8 +241,8 @@ function App() {
     const currentPlayer = currentIdentity ? players.get(currentIdentity.toHexString()) : null;
     let newPhase = gamePhase;
 
-    if (!isConnected || !dbConn) newPhase = 'connecting'; // Ensure dbConn is also ready
-    else if (!aptosWalletAddress) newPhase = 'wallet_connect'; // Wallet not connected, go to wallet connect phase
+    if (!isConnected || !dbConn) newPhase = 'connecting';
+    else if (!aptosWalletAddress) newPhase = 'wallet_connect';
     else if (!currentIdentity || !areAllSubscriptionsApplied || !gameConfig || 
              (currentPlayer && typeof currentPlayer.player_id !== 'number') || 
              (entities.size === 0 && TARGET_FOOD_COUNT > 0 && gamePhase !== 'login' && gamePhase !== 'playing' && gamePhase !== 'dead') ) {
@@ -240,69 +261,49 @@ function App() {
             }
         }
         if (newPhase === 'playing' && gamePhase !== 'playing') {
-             console.log("Switched to PLAYING phase. Current Player (valid PID):", {name: currentPlayer.name, playerId: currentPlayer.player_id, identity: currentPlayer.identity.toHexString()}, "Owned circles at phase switch:", playerOwnedRenderableCircles.map(c => ({eid: c.entityId, pid: c.player_id, radius: c.radius})));
+             console.log("Switched to PLAYING phase. CP:", {name: currentPlayer.name, pid: currentPlayer.player_id}, "Owned circles:", playerOwnedRenderableCircles.map(c => ({eid: c.entityId, pid: c.player_id, r: c.radius})));
         }
     }
     else { newPhase = 'login'; }
 
     if (newPhase !== gamePhase) {
-      console.log(`Game phase changing from ${gamePhase} to ${newPhase}. CurrentPlayer (for this decision):`, currentPlayer ? {...currentPlayer, identity: currentPlayer.identity.toHexString(), playerId: currentPlayer.player_id} : null, `AptosAddr: ${aptosWalletAddress}`);
+      console.log(`Game phase changing from ${gamePhase} to ${newPhase}. CP:`, currentPlayer ? {...currentPlayer, id_hex: currentPlayer.identity.toHexString()} : null, `Aptos: ${aptosWalletAddress}`);
       setGamePhase(newPhase);
     }
-  }, [isConnected, clientIdentity, players, areAllSubscriptionsApplied, gameConfig, dbConn, gamePhase, renderableCircles, entities, aptosWalletAddress]); // Added aptosWalletAddress
+  }, [isConnected, clientIdentity, players, areAllSubscriptionsApplied, gameConfig, dbConn, gamePhase, renderableCircles, entities, aptosWalletAddress]);
 
-  // Wallet Connection Handler
-  const handleConnectWallet = async () => {
+  const handleConnectWallet = async () => { /* ... Same ... */ 
     setWalletError(null);
-    // Prioritize window.petra if both exist, or choose based on your preference
     const walletProvider: AptosWallet | undefined = (window as any).petra || (window as any).aptos;
-
     if (walletProvider) {
         try {
-            // Check if already connected (some wallets might provide this)
             if (walletProvider.isConnected && await walletProvider.isConnected()) {
                 const account = await walletProvider.account();
-                console.log("Wallet already connected:", account);
                 setAptosWalletAddress(account.address);
-                // Optionally, get network:
-                // const network = await walletProvider.network();
-                // console.log("Connected to Aptos network:", network);
             } else {
-                // Connect if not already connected
                 const account = await walletProvider.connect();
-                console.log("Wallet connected:", account);
                 setAptosWalletAddress(account.address);
-                // const network = await walletProvider.network();
-                // console.log("Connected to Aptos network:", network);
             }
-        } catch (error: any) {
-            console.error("Failed to connect Aptos wallet:", error);
-            setWalletError(error?.message || "Failed to connect wallet. User might have rejected.");
-        }
-    } else {
-        setWalletError("Aptos wallet (e.g., Petra) not found. Please install a wallet extension.");
-        console.error("Aptos wallet (e.g., Petra) not found.");
-    }
+        } catch (error: any) { setWalletError(error?.message || "Failed to connect wallet."); }
+    } else { setWalletError("Aptos wallet not found."); }
   };
-
 
   const handleEnterGame = useCallback((e: React.FormEvent) => { 
     e.preventDefault(); 
     if (dbConn?.reducers && playerNameInput.trim() && aptosWalletAddress &&
-        (gamePhase === 'login' || gamePhase === 'loading_data')) { // Ensure wallet is connected too
+        (gamePhase === 'login' || gamePhase === 'loading_data')) { 
         console.log(`Calling enterGame with name: ${playerNameInput.trim()}, Aptos Address: ${aptosWalletAddress}`);
-        // TODO: Modify server reducer 'enter_game' to accept aptos_address
-        // For now, it just calls with name.
-        dbConn.reducers.enterGame(playerNameInput.trim() /*, aptosWalletAddress */); 
+        // ***** THIS IS THE MODIFIED LINE *****
+        dbConn.reducers.enterGame(playerNameInput.trim(), aptosWalletAddress); 
+        // ***** END MODIFIED LINE *****
     } else {
-        console.warn("Cannot enter game. Conditions not met (dbConn, name, aptosAddress, phase).", 
-            {dbConn:!!dbConn, name:playerNameInput, aptos:aptosWalletAddress, phase:gamePhase});
+        console.warn("Cannot enter game. Conditions not met.", {dbConn:!!dbConn, name:playerNameInput, aptos:aptosWalletAddress, phase:gamePhase});
     }
-  }, [dbConn, playerNameInput, gamePhase, aptosWalletAddress]); // Added aptosWalletAddress dependency
+  }, [dbConn, playerNameInput, gamePhase, aptosWalletAddress]);
 
-  const handleRespawn = useCallback(() => { /* ... Same ... */ if (dbConn?.reducers && gamePhase === 'dead') { console.log("Calling server respawn reducer."); dbConn.reducers.respawn(); } }, [dbConn, gamePhase]);
-  const handleSplit = useCallback(() => { /* ... Same ... */ if (dbConn?.reducers && gamePhase === 'playing') { dbConn.reducers.player_split(); } }, [dbConn, gamePhase]);
-  const handleSuicide = useCallback(() => { /* ... Same ... */ if (dbConn?.reducers && gamePhase === 'playing') { dbConn.reducers.suicide(); } }, [dbConn, gamePhase]);
+  const handleRespawn = useCallback(() => { if (dbConn?.reducers && gamePhase === 'dead') { console.log("Calling server respawn reducer."); dbConn.reducers.respawn(); } }, [dbConn, gamePhase]);
+  const handleSplit = useCallback(() => { if (dbConn?.reducers && gamePhase === 'playing') { dbConn.reducers.player_split(); } }, [dbConn, gamePhase]);
+  const handleSuicide = useCallback(() => { if (dbConn?.reducers && gamePhase === 'playing') { dbConn.reducers.suicide(); } }, [dbConn, gamePhase]);
 
   useEffect(() => { // Mouse move
     if (gamePhase !== 'playing' || !dbConn?.reducers || !canvasRef.current || !gameConfig) return;
@@ -327,17 +328,16 @@ function App() {
     const canvas = canvasRef.current; if (!canvas) return; const ctx = canvas.getContext('2d'); if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const world_size_cfg = gameConfig?.world_size ? Number(gameConfig.world_size) : 1000;
-    const actualRenderErrorOrLoading = (message: string) => {
+    const actualRenderErrorOrLoading = (message: string) => { /* ... same ... */
         ctx.fillStyle = '#333'; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = 'white'; ctx.textAlign = 'center'; ctx.font = '24px Arial';
-        if (connectionError) {
-            ctx.fillText(`Error: ${connectionError}`, canvas.width/2, canvas.height/2 - 20);
-            ctx.font = '16px Arial'; ctx.fillText(`Check console. Server running?`, canvas.width/2, canvas.height/2 + 20);
+        if (connectionError && gamePhase !== 'wallet_connect') { // Show SDB error unless in wallet phase
+            ctx.fillText(`SDB Error: ${connectionError}`, canvas.width/2, canvas.height/2 - 20);
         } else { ctx.fillText(message, canvas.width/2, canvas.height/2); }
     };
 
     const currentPlayerForLoadingCheck = clientIdentity ? players.get(clientIdentity.toHexString()) : null;
-    if (!gameConfig || !isConnected || gamePhase === 'wallet_connect' || // Show loading if wallet connect phase
+    if (!gameConfig || !isConnected || gamePhase === 'wallet_connect' ||
         (gamePhase === 'loading_data' && (!currentPlayerForLoadingCheck || typeof currentPlayerForLoadingCheck.player_id !== 'number')) ) { 
       let loadingMessage = 'Connecting...';
       if (isConnected && gamePhase === 'wallet_connect') loadingMessage = 'Connect Aptos Wallet';
@@ -352,24 +352,24 @@ function App() {
     let camX = world_size_cfg / 2; let camY = world_size_cfg / 2;
     const currentPlayer = clientIdentity ? players.get(clientIdentity.toHexString()) : null;
     let currentPlayerTotalMass = 0;
-    const actualCalculateCameraAndMass = () => { /* ... Same ... */ }; // Full version as before
-    if (currentPlayer && typeof currentPlayer.player_id === 'number' && (gamePhase === 'playing' || gamePhase === 'dead')) {
-        const playerOwnedRenderableCircles = renderableCircles.filter(c => c.player_id === currentPlayer.player_id);
-        playerOwnedRenderableCircles.forEach(c => { if (c.mass) currentPlayerTotalMass += c.mass; });
-        if (gamePhase === 'playing' && playerOwnedRenderableCircles.length > 0) {
-            let xSum = 0, ySum = 0, mSumForCamera = 0;
-            playerOwnedRenderableCircles.forEach(c => { if (c.position && c.mass) { xSum += c.position.x * c.mass; ySum += c.position.y * c.mass; mSumForCamera += c.mass;}});
-            if (mSumForCamera > 0) { camX = xSum / mSumForCamera; camY = ySum / mSumForCamera; }
+    const actualCalculateCameraAndMass = () => { /* ... same ... */ 
+        if (currentPlayer && typeof currentPlayer.player_id === 'number' && (gamePhase === 'playing' || gamePhase === 'dead')) {
+            const playerOwnedRenderableCircles = renderableCircles.filter(c => c.player_id === currentPlayer.player_id);
+            playerOwnedRenderableCircles.forEach(c => { if (c.mass) currentPlayerTotalMass += c.mass; });
+            if (gamePhase === 'playing' && playerOwnedRenderableCircles.length > 0) {
+                let xSum = 0, ySum = 0, mSumForCamera = 0;
+                playerOwnedRenderableCircles.forEach(c => { if (c.position && c.mass) { xSum += c.position.x * c.mass; ySum += c.position.y * c.mass; mSumForCamera += c.mass;}});
+                if (mSumForCamera > 0) { camX = xSum / mSumForCamera; camY = ySum / mSumForCamera; }
+            }
         }
-    }
+    };
     actualCalculateCameraAndMass();
-
 
     ctx.save(); ctx.translate(canvas.width/2 - camX, canvas.height/2 - camY);
     ctx.strokeStyle = '#444'; ctx.lineWidth = Math.max(5, world_size_cfg/200); ctx.strokeRect(0,0,world_size_cfg, world_size_cfg);
     renderableFoodItems.forEach(f => { if (f?.position && f.radius) { ctx.beginPath(); ctx.arc(f.position.x, f.position.y, f.radius, 0, 2*Math.PI); ctx.fillStyle='#90EE90'; ctx.fill();}});
-    if (gamePhase === 'playing' && currentPlayer && typeof currentPlayer.player_id !== 'number') { console.warn(`[Canvas Render] In 'playing' phase, but currentPlayer.player_id is invalid`); }
-    renderableCircles.forEach(c => { /* ... Same circle rendering logic ... */ 
+    if (gamePhase === 'playing' && currentPlayer && typeof currentPlayer.player_id !== 'number') { console.warn(`[Canvas Render] In 'playing' phase, but CP.player_id invalid`); }
+    renderableCircles.forEach(c => { /* ... same circle rendering logic ... */ 
         if (c?.position && typeof c.radius === 'number' && c.radius > 0 && typeof c.player_id === 'number') {
         const currentPlayerDataForRender = clientIdentity ? players.get(clientIdentity.toHexString()) : null;
         const isOwn = currentPlayerDataForRender && typeof currentPlayerDataForRender.player_id === 'number' && currentPlayerDataForRender.player_id === c.player_id;
@@ -383,85 +383,47 @@ function App() {
       }
     });
     ctx.restore();
-    const actualHudAndDeathScreen = () => { /* ... Same ... */ }; // Full version as before
+    const actualHudAndDeathScreen = () => { /* ... same ... */ }; // Full HUD and Death Screen
     if(currentPlayer){ ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(5,5,200,50); ctx.fillStyle='white'; ctx.font='16px Arial'; ctx.textAlign='left'; ctx.textBaseline='top'; ctx.fillText(`Name: ${currentPlayer.name||"P"}`,10,10); ctx.fillText(`Mass: ${currentPlayerTotalMass.toFixed(0)}`,10,30); }
     if(gamePhase==='dead'){ ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.fillStyle='white'; ctx.textAlign='center'; ctx.font='48px Arial'; ctx.fillText('You Died!',canvas.width/2,canvas.height/2-40); ctx.font='24px Arial'; ctx.fillText(`Final Mass: ${currentPlayerTotalMass.toFixed(0)}`,canvas.width/2,canvas.height/2+10); }
     actualHudAndDeathScreen();
-
 
   }, [gamePhase, renderableCircles, renderableFoodItems, players, gameConfig, clientIdentity, isConnected, connectionError, canvasRef, entities]);
 
   return (
     <div className="App">
       {gamePhase === 'connecting' && <div className="modal"><h1>Connecting to SpacetimeDB...</h1></div>}
-      
       {gamePhase === 'wallet_connect' && (
         <div className="modal wallet-modal">
           <h1>Connect Your Aptos Wallet</h1>
-          {!isPetraWalletInstalled && <p style={{color: 'orange'}}>Petra (or other Aptos standard) wallet not detected. Please install a wallet extension.</p>}
-          <button onClick={handleConnectWallet} disabled={!isPetraWalletInstalled}>
-            Connect Wallet (e.g., Petra)
-          </button>
+          {!isPetraWalletInstalled && <p style={{color: 'orange'}}>Aptos standard wallet (e.g., Petra) not detected.</p>}
+          <button onClick={handleConnectWallet} disabled={!isPetraWalletInstalled}>Connect Wallet</button>
           {walletError && <p style={{color: 'red'}}>{walletError}</p>}
           {aptosWalletAddress && <p>Connected: {aptosWalletAddress.substring(0,6)}...{aptosWalletAddress.substring(aptosWalletAddress.length - 4)}</p>}
-          {/* Optionally, button to proceed if wallet is connected, or auto-proceed */}
         </div>
       )}
-
-      {gamePhase === 'login' && !connectionError && aptosWalletAddress && ( // Only show login if wallet is connected
+      {gamePhase === 'login' && !connectionError && aptosWalletAddress && (
         <div className="modal login-modal">
           <h1>Enter Game</h1>
           <p>Wallet: {aptosWalletAddress.substring(0,6)}...{aptosWalletAddress.substring(aptosWalletAddress.length - 4)}</p>
           <form onSubmit={handleEnterGame}>
-            <input
-              type="text"
-              value={playerNameInput}
-              onChange={(e) => setPlayerNameInput(e.target.value)}
-              placeholder="Enter your name"
-              required
-              autoFocus
-              maxLength={20}
-            />
-            <button type="submit" disabled={!playerNameInput.trim()}>
-              Join Game
-            </button>
+            <input type="text" value={playerNameInput} onChange={(e) => setPlayerNameInput(e.target.value)} placeholder="Enter your name" required autoFocus maxLength={20}/>
+            <button type="submit" disabled={!playerNameInput.trim()}>Join Game</button>
           </form>
         </div>
       )}
-
-      {/* Error modal for SpacetimeDB connection issues */}
       {connectionError && (gamePhase === 'connecting' || gamePhase === 'loading_data' || gamePhase === 'login' || gamePhase === 'wallet_connect') && (
-        <div className="modal error-modal">
-          <h1>Connection Issue</h1>
-          <p>{connectionError}</p>
-          <p>Ensure SpacetimeDB server is running.</p>
-        </div>
+        <div className="modal error-modal"><h1>Connection Issue</h1><p>{connectionError}</p><p>Ensure SpacetimeDB server is running.</p></div>
       )}
-
-      {/* Game Canvas and Controls - only shown when not in initial connection/wallet phases */}
       {(gamePhase === 'loading_data' || gamePhase === 'playing' || gamePhase === 'dead') && (
         <>
-          <div className="game-container">
-            <canvas
-              ref={canvasRef}
-              width={Math.max(320, window.innerWidth * 0.9)}
-              height={Math.max(240, window.innerHeight * 0.8)}
-            />
-          </div>
+          <div className="game-container"><canvas ref={canvasRef} width={Math.max(320, window.innerWidth * 0.9)} height={Math.max(240, window.innerHeight * 0.8)}/></div>
           <div className="controls">
-            {gamePhase === 'playing' && (
-              <>
-                <button onClick={handleSplit}>Split (Space)</button>
-                <button onClick={handleSuicide}>Suicide</button>
-              </>
-            )}
-            {gamePhase === 'dead' && (
-              <button onClick={handleRespawn}>Respawn</button>
-            )}
+            {gamePhase === 'playing' && (<><button onClick={handleSplit}>Split (Space)</button><button onClick={handleSuicide}>Suicide</button></>)}
+            {gamePhase === 'dead' && (<button onClick={handleRespawn}>Respawn</button>)}
           </div>
         </>
       )}
-
       <div className="debug-info">
         <p>Phase: {gamePhase} | SDB Conn: {isConnected.toString()} | SubsDone: {areAllSubscriptionsApplied.toString()}</p>
         {clientIdentity && <p>SDB Identity: {clientIdentity.toHexString().substring(0,10)}...</p>}
