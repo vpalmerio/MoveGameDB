@@ -61,7 +61,7 @@ pub struct Circle {
 pub struct Player {
     #[primary_key]
     identity: Identity,
-    #[unique]
+    //#[unique]
     #[auto_inc]
     player_id: u32,
     name: String,
