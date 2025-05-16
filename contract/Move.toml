@@ -4,7 +4,7 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-player_skin_module_admin = "0xb4c1187da61e3817ba53c031eb7a455ed57234d2278ce3e4ed2c8bb412d72840"
+player_skin_module_admin = "_"
 
 [dependencies]
 AptosFramework = { git = "https://github.com/aptos-labs/aptos-framework.git", rev = "mainnet", subdir = "aptos-framework" }

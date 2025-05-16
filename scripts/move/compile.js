@@ -15,7 +15,7 @@ async function compile() {
     packageDirectoryPath: "contract",
     namedAddresses: {
       // Compile module with account address
-      message_board_addr: process.env.VITE_MODULE_PUBLISHER_ACCOUNT_ADDRESS,
+      player_skin_module_admin: process.env.VITE_MODULE_PUBLISHER_ACCOUNT_ADDRESS,
     },
   });
 }

@@ -16,7 +16,7 @@ async function publish() {
     objectAddress: process.env.VITE_MODULE_ADDRESS,
     namedAddresses: {
       // Upgrade module from an object
-      message_board_addr: process.env.VITE_MODULE_ADDRESS,
+      player_skin_module_admin: process.env.VITE_MODULE_ADDRESS,
     },
     extraArguments: [`--private-key=${process.env.VITE_MODULE_PUBLISHER_ACCOUNT_PRIVATE_KEY}`,`--url=${aptosSDK.NetworkToNodeAPI[process.env.VITE_APP_NETWORK]}`],
   });
