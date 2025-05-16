@@ -1,40 +1,118 @@
-## Create Aptos Dapp Boilerplate Template
+# MoveGameDB - A Massively Multiplayer Game with SpaceTimeDB and Aptos
 
-The Boilerplate template provides a starter dapp with all necessary dapp infrastructure and a simple wallet info implementation, transfer APT and a simple message board functionality to send and read a message on chain.
+![Game Screenshot 1](assets/png1.png)
+![Game Screenshot 2](assets/png2.png)
+![Game Screenshot 3](assets/png3.png)
 
-## Read the Boilerplate template docs
+## Overview
 
-To get started with the Boilerplate template and learn more about the template functionality and usage, head over to the [Boilerplate template docs](https://learn.aptoslabs.com/en/dapp-templates/boilerplate-template)
+MoveGameDB is a massively multiplayer game that demonstrates the power of SpaceTimeDB for real-time game state management and Aptos blockchain for secure in-game item transactions. The game features a space-themed environment where players can interact, collect items, and engage in various gameplay mechanics.
 
-## The Boilerplate template provides:
+## Project Structure
 
-- **Folder structure** - A pre-made dapp folder structure with a `frontend` and `contract` folders.
-- **Dapp infrastructure** - All required dependencies a dapp needs to start building on the Aptos network.
-- **Wallet Info implementation** - Pre-made `WalletInfo` components to demonstrate how one can use to read a connected Wallet info.
-- **Transfer APT implementation** - Pre-made `transfer` components to send APT to an address.
-- **Message board functionality implementation** - Pre-made `message` components to send and read a message on chain
+The project is organized into several key components:
 
-## What tools the template uses?
+### 1. SpaceTimeDB Backend (`/spacetime`)
+- Real-time game state management
+- Handles thousands of concurrent player connections
+- Manages game physics and player interactions
+- Built with SpaceTimeDB's powerful distributed database system
+- Ensures consistent game state across all connected players
 
-- React framework
-- Vite development tool
-- shadcn/ui + tailwind for styling
-- Aptos TS SDK
-- Aptos Wallet Adapter
-- Node based Move commands
-- [Vite-pwa](https://vite-pwa-org.netlify.app/)
+### 2. Frontend (`/frontend`)
+- Built with React and TypeScript
+- Real-time game rendering
+- Responsive UI for game controls and player information
+- WebSocket integration with SpaceTimeDB
+- Smooth animations and particle effects
 
-## What Move commands are available?
+### 3. Aptos Smart Contracts (`/contracts`)
+- Written in Move programming language
+- Handles in-game item ownership and transfers
+- Manages player inventories and achievements
+- Processes hundreds of concurrent item transactions
+- Ensures secure and verifiable item ownership
 
-The tool utilizes [aptos-cli npm package](https://github.com/aptos-labs/aptos-cli) that lets us run Aptos CLI in a Node environment.
+### 4. Middleware Server (`/server`)
+- Node.js/Express backend
+- Bridges communication between SpaceTimeDB and Aptos blockchain
+- Handles authentication and player sessions
+- API endpoints for game services
+- Transaction management and optimization
 
-Some commands are built-in the template and can be ran as a npm script, for example:
+## Technology Stack
 
-- `npm run move:publish` - a command to publish the Move contract
-- `npm run move:test` - a command to run Move unit tests
-- `npm run move:compile` - a command to compile the Move contract
-- `npm run move:upgrade` - a command to upgrade the Move contract
-- `npm run dev` - a command to run the frontend locally
-- `npm run deploy` - a command to deploy the dapp to Vercel
+### SpaceTimeDB
+- Distributed real-time database
+- Horizontal scaling for massive player support
+- Built-in conflict resolution
+- Microsecond latency for real-time updates
+- Automatic state synchronization across clients
 
-For all other available CLI commands, can run `npx aptos` and see a list of all available commands.
+### Aptos Blockchain
+- Move-based smart contracts
+- Parallel transaction execution
+- High throughput for item transactions
+- Built-in NFT support
+- Secure and verifiable game assets
+
+### Frontend Technologies
+- React.js
+- TypeScript
+- WebGL/Three.js for rendering
+- Web3.js for blockchain integration
+- WebSocket for real-time communication
+
+### Backend Technologies
+- Node.js
+- Express
+- SpaceTimeDB SDK
+- Aptos SDK
+- WebSocket Server
+
+## Key Features
+
+1. **Massively Multiplayer Support**
+   - Thousands of concurrent players
+   - Real-time state updates
+   - Seamless player interaction
+
+2. **Blockchain Integration**
+   - Secure item ownership
+   - Tradeable in-game assets
+   - Verifiable game achievements
+
+3. **Performance Optimization**
+   - Low-latency updates
+   - Efficient state synchronization
+   - Optimized resource usage
+
+## Getting Started
+
+1. Clone the repository
+2. Install dependencies for each component
+3. Set up SpaceTimeDB credentials
+4. Configure Aptos network settings
+5. Start the development servers
+
+```bash
+# Install dependencies
+npm install
+
+# Start SpaceTimeDB server
+npm run spacetime
+
+# Start middleware server
+npm run server
+
+# Start frontend development
+npm run frontend
+```
+
+## Contributing
+
+Contributions are welcome! Please read our contributing guidelines and submit pull requests for any enhancements.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
