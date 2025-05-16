@@ -3,6 +3,8 @@
 .env
 contract/build
 
+/target
+
 # Logs
 logs
 *.log
