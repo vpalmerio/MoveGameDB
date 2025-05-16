@@ -50,7 +50,7 @@ use module_bindings::{
 use log::{error, warn, info};
 
 const PINK_SKIN_MASS_THRESHOLD: u32 = 50;
-const RAINBOW_SKIN_MASS_THRESHOLD: u32 = 500;
+const RAINBOW_SKIN_MASS_THRESHOLD: u32 = 100;
 const SPACETIMEDB_HOST: &str = "ws://localhost:3000";
 const SPACETIMEDB_DB_NAME: &str = "spacetime-agario";
 const SPACETIMEDB_CREDS_DIR_NAME: &str = "spacetime-agario";
