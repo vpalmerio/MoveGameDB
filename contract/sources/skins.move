@@ -51,7 +51,7 @@ module player_skin_module_admin::player_skins {
     // Asserts that the caller is the module owner.
     fun assert_is_owner(account: &signer) acquires ModuleOwner {
         let caller_address = signer::address_of(account);
-        let module_owner_address = borrow_global<ModuleOwner>(@YOUR_DEPLOYER_ADDRESS).owner_address; // Assuming ModuleOwner is under @YOUR_DEPLOYER_ADDRESS
+        let module_owner_address = borrow_global<ModuleOwner>(@player_skin_module_admin).owner_address; // Assuming ModuleOwner is under player_skin_module_admin
                                                                                                 // Or, if ModuleOwner resource is under the actual owner's address:
                                                                                                 // let module_owner_address = borrow_global<ModuleOwner>(signer::address_of(account)).owner_address;
                                                                                                 // but the resource should be under a fixed address.
@@ -66,7 +66,7 @@ module player_skin_module_admin::player_skins {
     acquires ModuleOwner, PinkSkinHolders {
         assert_is_owner(owner_account); // Ensure caller is the owner
 
-        let deployer_address = borrow_global<ModuleOwner>(@YOUR_DEPLOYER_ADDRESS).owner_address;
+        let deployer_address = borrow_global<ModuleOwner>(@player_skin_module_admin).owner_address;
         let pink_skin_holders = borrow_global_mut<PinkSkinHolders>(deployer_address);
 
         // Optional: Check if skin is already granted to prevent redundant operations or events
@@ -81,7 +81,7 @@ module player_skin_module_admin::player_skins {
     acquires ModuleOwner, RainbowSkinHolders {
         assert_is_owner(owner_account); // Ensure caller is the owner
 
-        let deployer_address = borrow_global<ModuleOwner>(@YOUR_DEPLOYER_ADDRESS).owner_address;
+        let deployer_address = borrow_global<ModuleOwner>(@player_skin_module_admin).owner_address;
         let rainbow_skin_holders = borrow_global_mut<RainbowSkinHolders>(deployer_address);
 
         // Optional: Check if skin is already granted
@@ -96,11 +96,11 @@ module player_skin_module_admin::player_skins {
     // Checks if a user has the pink skin.
     public fun has_pink_skin(user: address): bool
     acquires PinkSkinHolders {
-        // Assume ModuleOwner resource (and thus PinkSkinHolders) is under @YOUR_DEPLOYER_ADDRESS
-        if (!exists<PinkSkinHolders>(@YOUR_DEPLOYER_ADDRESS)) {
+        // Assume ModuleOwner resource (and thus PinkSkinHolders) is under player_skin_module_admin
+        if (!exists<PinkSkinHolders>(@player_skin_module_admin)) {
             return false // Table not initialized yet
         };
-        let pink_skin_holders = borrow_global<PinkSkinHolders>(@YOUR_DEPLOYER_ADDRESS);
+        let pink_skin_holders = borrow_global<PinkSkinHolders>(@player_skin_module_admin);
         table::contains(&pink_skin_holders.skins, user)
     }
 
@@ -108,10 +108,10 @@ module player_skin_module_admin::player_skins {
     // Checks if a user has the rainbow skin.
     public fun has_rainbow_skin(user: address): bool
     acquires RainbowSkinHolders {
-        if (!exists<RainbowSkinHolders>(@YOUR_DEPLOYER_ADDRESS)) {
+        if (!exists<RainbowSkinHolders>(@player_skin_module_admin)) {
             return false // Table not initialized yet
         };
-        let rainbow_skin_holders = borrow_global<RainbowSkinHolders>(@YOUR_DEPLOYER_ADDRESS);
+        let rainbow_skin_holders = borrow_global<RainbowSkinHolders>(@player_skin_module_admin);
         table::contains(&rainbow_skin_holders.skins, user)
     }
 }
