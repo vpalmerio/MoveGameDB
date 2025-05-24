@@ -1,7 +1,9 @@
 # MoveGameDB - A Massively Multiplayer Game with SpaceTimeDB and Aptos
 
 ## Demo Video
-https://github.com/vpalmerio/MoveGameDB/raw/main/assets/submission.mp4
+https://github.com/user-attachments/assets/5554a019-ae5d-4796-8650-3a08ba18c01d
+
+[Link to uncompressed video](https://drive.google.com/drive/u/0/folders/1GFS2UCtK88MU6I7pRU8TnpHuRQ4pwQIR)
 
 <video width="800" controls>
   <source src="assets/submission.mp4" type="video/mp4">
