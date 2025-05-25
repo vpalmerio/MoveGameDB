@@ -29,16 +29,13 @@ interface AptosWallet {
   isConnected: () => Promise<boolean>;
 }
 
-const SPACETIMEDB_URI = 'ws://localhost:3000';
-const MODULE_NAME = 'spacetime-agario';
 const TARGET_FOOD_COUNT = 600;
+const APTOS_NETWORK: Network = Network.TESTNET;
 
-// --- Aptos Smart Contract Configuration ---
-// TODO: Configure these values for your specific setup
-const APTOS_NETWORK: Network = Network.TESTNET; // Or Network.TESTNET, Network.MAINNET
-// IMPORTANT: Replace with the actual address of the account that deployed the player_skins module.
-// This is the hex address corresponding to 'player_skin_module_admin' in your Move contract.
-const PLAYER_SKIN_MODULE_ADDRESS = "0xb4c1187da61e3817ba53c031eb7a455ed57234d2278ce3e4ed2c8bb412d72840"; 
+// Read environment variables with fallback values
+const SPACETIMEDB_URI = import.meta.env.VITE_SPACETIMEDB_URI || 'ws://localhost:3000';
+const MODULE_NAME = import.meta.env.VITE_MODULE_NAME || 'spacetime-agario';
+const PLAYER_SKIN_MODULE_ADDRESS = import.meta.env.VITE_PLAYER_SKIN_MODULE_ADDRESS || '0xYOUR_ACCOUNT_ADDRESS_THAT_DEPLOYED_THE_MODULE';
 
 // Initialize Aptos client (can be outside the component if config is static)
 const aptosConfig = new AptosConfig({ network: APTOS_NETWORK });
