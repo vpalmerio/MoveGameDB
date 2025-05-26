@@ -41,6 +41,10 @@ The project is organized into several key components:
 - Written in Move programming language
 - Handles in-game skin ownership
 
+## Running the project with Docker
+
+Coming soon!
+
 ## Running the project manually (for development)
 
 ### Prerequisites
@@ -104,7 +108,8 @@ RUST_LOG=info cargo run
 ```
 This will compile and run the middleware server. Putting `RUST_LOG=info` before `cargo run` will give you more verbose logging about what the server is doing behind the scenes.
 
-### 4. Lastly, run the webserver. First, create a file called `.env` under the `frontend-agario/` folder and paste in the following:
+### 4. Lastly, run the webserver. 
+First, create a file called `.env` under the `frontend-agario/` folder and paste in the following:
 ```env
 VITE_SPACETIMEDB_URI="ws://localhost:3000"
 VITE_MODULE_NAME="spacetime-agario" //name of the spacetimedb module you published
